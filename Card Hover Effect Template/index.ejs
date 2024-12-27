@@ -1,0 +1,403 @@
+<html>
+<head>
+  <!-- Required inclusion of Electron-specific CSS when the agent is 'electron' -->
+  <% if (agent === "electron") { %>
+    <link href="/electron.css" rel="stylesheet">
+  <% } %>
+
+  <!-- Use the FontAwesome Icons built into Pinokio https://fontawesome.com/search -->
+  <link href="/css/fontawesome.min.css" rel="stylesheet">
+  <link href="/css/solid.min.css" rel="stylesheet">
+  <link href="/css/regular.min.css" rel="stylesheet">
+
+  <!-- Use Tippy/Popper for displaying the context menu -->
+  <link href="/tippy.css" rel="stylesheet">
+  <script src="/popperjs.js"></script>
+  <script src="/tippy.js"></script>
+
+  <!-- Customize the Stylesheet to make it your own -->
+  <style>
+    /***************************************************************
+     * Body & Main
+     **************************************************************/
+     body {
+       /* Radial Gradient: 
+       - "ellipse at center" makes a circular/elliptical gradient starting at the center
+       - #35654d is a medium green
+       - #243d2b is a darker green
+       */
+      background: radial-gradient(ellipse at center, #458456 0%, #243d2b 100%);
+  
+      margin: 0;           /* remove default margin if you want a full-viewport background */
+      min-height: 100vh;   /* ensures it spans full viewport height */
+      /* Add any additional properties you need (e.g. font-family, color, etc.) */
+    }
+
+    main {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 100px 50px;
+      box-sizing: border-box;
+      font-family: sans-serif;
+      font-size: 12px;
+      justify-content: center;
+    }
+
+    /***************************************************************
+     * Header
+     **************************************************************/
+    /* The "grabbable" header is needed in order to let users
+       grab the header (in Electron) and move around the window */
+    header.grabbable {
+      -webkit-app-region: drag;
+      height: 30px; /* Adjust as you like */
+    }
+
+    /***************************************************************
+     * Footer
+     **************************************************************/
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 20px;
+      background: rgba(0, 0, 0, 0.3); /* Slightly transparent black overlay */
+    }
+    footer .container {
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    footer .btns {
+      display: flex;
+      gap: 15px; /* Spacing between the buttons */
+    }
+    footer .btn {
+      font-family: sans-serif;
+      color: white;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      font-size: 16px;
+      padding: 8px 16px;
+      background: #1B1B1B; /* Dark background for the button */
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    footer .btn:hover {
+      background: #2D2D2D;
+    }
+    footer .btn i {
+      margin-right: 8px;
+    }
+
+    /***************************************************************
+     * Search Bar
+     **************************************************************/
+    footer .search-container {
+      flex-grow: 1;
+      display: flex;
+      justify-content: flex-end;
+    }
+    footer input#search {
+      width: 250px;
+      padding: 10px 15px;
+      border: none;
+      border-radius: 20px;
+      font-size: 14px;
+      outline: none;
+      font-family: sans-serif;
+    }
+    footer input#search::placeholder {
+      color: #999;
+      font-style: italic;
+    }
+
+    /***************************************************************
+     * 3D “Card Flip” Styles
+     **************************************************************/
+    .item {
+      display: inline-block;
+      width: 300px;        /* Adjust as needed */
+      height: 200px;       /* Adjust as needed */
+      margin: 25px;
+      perspective: 800px;  /* Important for the 3D flip effect */
+      text-decoration: none;
+      color: white;
+      position: relative;  /* For absolutely positioned card faces */
+      cursor: pointer;
+    }
+    .item.running {
+      color: yellowgreen;
+      font-weight: bold;
+    }
+    .item .open-indicator {
+      background-color: green;    /* or a color that fits your theme */
+      color: #fff;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 4px 6px;
+      border-radius: 4px;
+
+      /* Position it absolutely within the .front face */
+      position: absolute;
+      top: 8px;
+      right: 8px;
+    }
+    .item .card {
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.6s ease;
+      position: relative;
+    }
+    .item:hover .card {
+      transform: rotateY(180deg);
+    }
+    .item .face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 10px;
+      backface-visibility: hidden; /* Hide the face facing away */
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .item .front {
+      background: rgba(0, 0, 0, 0.4); /* was 0.2 */
+    }
+    .item .front img {
+      width: 100px;
+      height: 100px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .item .front .name {
+      margin-top: 10px;
+      color: #fff;
+      font-size: 16px;
+    }
+    .item .back {
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      transform: rotateY(180deg);
+      padding: 10px;
+      font-size: 12px;
+
+      overflow-y: auto; /* Enable scrolling */
+      word-wrap: break-word;
+      white-space: normal;
+    }
+    .hidden {
+      display: none !important;
+    }
+
+    /***************************************************************
+     * Context Menu
+     **************************************************************/
+    .menuitem:hover {
+      color: royalblue;
+    }
+    .menuitem {
+      padding: 5px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!--The "grabbable" header for Electron usage-->
+  <header class='grabbable'></header>
+
+  <!--Display the installed items-->
+  <main>
+    <% items.forEach((item) => { %>
+      <% if (item.running) { %>
+        <!-- If app is running, add 'running' style -->
+        <a class="item running"
+          data-browse-url="<%= item.browse_url %>"
+          data-href="<%= item.url %>"
+          data-name="<%= item.name %>"
+          data-description="<%= item.description %>"
+          data-path="<%= item.path %>"
+          onclick="visit(event)">
+          <div class="card">
+            <div class="face front">
+              <img src="<%= item.icon %>" alt="<%= item.name %>" />
+              <div class="name"><%= item.name %></div>
+            
+              <!-- Only show this if the app is running -->
+              <% if (item.running) { %>
+                <div class="open-indicator">OPEN</div>
+              <% } %>
+            </div>
+            <div class="face back">
+              <div><%= item.description %></div>
+            </div>
+          </div>
+        </a>
+      <% } else { %>
+        <!-- If app is not running -->
+        <a class="item"
+          data-browse-url="<%= item.browse_url %>"
+          data-href="<%= item.url %>"
+          data-name="<%= item.name %>"
+          data-description="<%= item.description %>"
+          data-path="<%= item.path %>"
+          onclick="visit(event)">
+          <div class="card">
+            <div class="face front">
+              <% if (item.icon) { %>
+                <img src="<%= item.icon %>" alt="<%= item.name %>">
+              <% } else { %>
+                <img src="icon.png" alt="Default Icon">
+              <% } %>
+              <div class="name"><%= item.name %></div>
+            </div>
+            <div class="face back">
+              <div><%= item.description %></div>
+            </div>
+          </div>
+        </a>
+      <% } %>
+    <% }) %>
+  </main>
+
+  <!--The footer dock-->
+  <footer>
+    <div class="container">
+      <div class="btns">
+        <!-- "Discover" button -->
+        <a class="btn" href="/?mode=explore">
+          <!-- If you want to keep the icon, uncomment the next line -->
+          <!-- <i class="fa-solid fa-magnifying-glass"></i> -->
+          Discover
+        </a>
+        <!-- Link to Portal (if desired) -->
+        <a class="btn" href="https://portal.pinokio.computer">
+          <i class="fa-solid fa-question"></i>
+        </a>
+        <!-- "Settings" button -->
+        <a class="btn" href="/?mode=settings">
+          <!-- If you want to keep the gear icon, uncomment the next line -->
+          <!-- <i class="fa-solid fa-gear"></i> -->
+          Settings
+        </a>
+      </div>
+      <div class="search-container">
+        <input id="search" type="text" placeholder="Deal me in..." autofocus/>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    /****************************************************************
+    *
+    *   Realtime search function
+    *
+    ****************************************************************/
+    const filter = (items, value) => {
+      for(let i=0; i<items.length; i++) {
+        let item = items[i]
+        let re = new RegExp(value, "i")
+        if (re.test(item.name) || re.test(item.description) || re.test(item.path)) {
+          item.el.classList.remove("hidden")
+        } else {
+          item.el.classList.add("hidden")
+        }
+      }
+    }
+
+    /************************************************************************
+    *
+    *   Call filter() whenever a new input is entered in the search box
+    *
+    ************************************************************************/
+    document.querySelector("#search").addEventListener("input", (e) => {
+      let items = []
+      document.querySelectorAll(".item").forEach((el) => {
+        items.push({
+          name: el.getAttribute("data-name"),
+          description: el.getAttribute("data-description"),
+          path: el.getAttribute("data-path"),
+          el
+        })
+      })
+      filter(items, e.target.value)
+    })
+
+    /****************************************************************
+    *
+    *   Handle Icon Click: Visit the app page when clicked
+    *
+    ****************************************************************/
+    const visit = (event) => {
+      let target = event.target
+      if (!target.classList.contains("item")) {
+        target = event.target.closest(".item")
+      }
+      location.href = target.getAttribute("data-href")
+    }
+
+    /****************************************************************
+    *
+    *   Context Menu: Handle right click on icons
+    *   1. Select "Open" => run()
+    *   2. Select "Browse" => browse()
+    *
+    ****************************************************************/
+    tippy('.item', {
+      content: `
+        <div class='menuitem' onclick="run(event)">Open</div>
+        <div class='menuitem' onclick="browse(event)">Browse</div>
+      `,
+      placement: 'bottom',
+      allowHTML: true,
+      interactive: true,
+      trigger: 'contextmenu',
+      onTrigger(instance, event) {
+        event.preventDefault()
+        let attr  = instance.reference.getAttribute("data-browse-url")
+        let attr2 = instance.reference.getAttribute("data-href")
+        instance.popper.setAttribute("data-browse-url", attr)
+        instance.popper.setAttribute("data-href", attr2)
+      },
+    });
+
+    const run = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      let url = event.target.closest("[data-href]").getAttribute("data-href")
+      location.href = url
+    }
+
+    const browse = (event) => {
+      event.preventDefault()
+      event.stopPropagation()
+      let url = event.target.closest("[data-browse-url]").getAttribute("data-browse-url")
+      location.href = url
+    }
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
