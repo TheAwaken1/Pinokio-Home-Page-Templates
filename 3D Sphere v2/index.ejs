@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Pinokio Dashboard</title>
+    <link href="/css/fontawesome.min.css" rel="stylesheet">
+    <link href="/css/solid.min.css" rel="stylesheet">
+    <link href="/css/regular.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        :root {
+            --primary-color: #2C3E50;
+            --accent-color: #3498DB;
+            --text-light: #ECF0F1;
+            --card-bg: rgba(255, 255, 255, 0.1);
+        }
+        
+        /* BODY BACKGROUND: Space-themed gradient */
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+            background-attachment: fixed;
+            background-size: cover;
+            background-position: center;
+            font-family: sans-serif;
+        }
+
+        /* SEMI-TRANSPARENT 3D SCENE CONTAINER */
+        #scene-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background: rgba(15, 12, 41, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        /* TOP-RIGHT OVERLAY (IF USED) */
+        .overlay {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+
+        /* APP TOOLTIP */
+        .app-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            pointer-events: none;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 300px;
+            display: none; /* Hidden by default; shown on hover */
+        }
+
+        /* CONTROL BUTTONS CONTAINER */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        /* BUTTON STYLING */
+        .btn {
+            background: linear-gradient(135deg, #dd2476, #ff512f);
+            color: #fff;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease, transform 0.2s ease;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, #ff512f, #dd2476);
+            transform: scale(1.05);
+        }
+
+        /* SEARCH BAR STYLING */
+        .search-bar {
+            border: none;
+            border-radius: 30px;
+            padding: 10px 20px;
+            font-size: 14px;
+            outline: none;
+            width: 200px;
+            color: #fff;
+            background: rgba(255, 255, 255, 0.2);
+            transition: background 0.3s ease, width 0.3s ease;
+        }
+
+        .search-bar::placeholder {
+            color: #fff;
+            opacity: 0.7;
+        }
+
+        .search-bar:focus {
+            background: rgba(255, 255, 255, 0.3);
+            width: 240px;
+        }
+
+        /* Hide the apps container if you don't want it displayed */
+        .apps-container {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="scene-container"></div>
+    
+    <!-- 
+      If you're loading apps from the server, this container
+      still holds all app data, used to create spheres.
+    -->
+    <div class="apps-container">
+        <% items.forEach((item) => { %>
+            <div class="item <%= item.running ? 'running' : '' %>"
+                data-browse-url="<%= item.browse_url %>"
+                data-href="<%= item.url %>"
+                data-name="<%= item.name %>"
+                data-description="<%= item.description %>"
+                data-path="<%= item.path %>">
+                <img src="<%= item.icon || 'icon.png' %>" alt="<%= item.name %>">
+            </div>
+        <% }) %>
+    </div>
+
+    <!-- Tooltip for sphere info -->
+    <div class="app-tooltip"></div>
+
+    <!-- Control buttons + Search bar -->
+    <div class="controls">
+        <!-- We give the rotation button an ID so we can change its text in code -->
+        <button class="btn" id="rotationButton" onclick="toggleRotation()">Stop Rotation</button>
+        <button class="btn" onclick="location.href='/?mode=explore'">Discover</button>
+        <button class="btn" onclick="location.href='/?mode=settings'">Settings</button>
+        <input type="text" class="search-bar" placeholder="Search..." id="searchInput">
+    </div>
+
+    <script>
+        let scene, camera, renderer, controls;
+        let appObjects = new Map(); // sphere -> { name, description, url }
+        let isRotating = true;
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('scene-container').appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            camera.position.z = 20;
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+
+            createApps();
+            animate();
+
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('click', onClick);
+            window.addEventListener('mousemove', onMouseMove);
+
+            // Add the real-time search listener
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('keyup', (event) => {
+                const query = event.target.value.toLowerCase().trim();
+                filterApps(query);
+            });
+        }
+
+        /**
+         * Reads the .apps-container .item elements and creates 3D spheres.
+         */
+        function createApps() {
+            const items = document.querySelectorAll('.apps-container .item');
+            const textureLoader = new THREE.TextureLoader();
+            
+            items.forEach((item, index) => {
+                const geometry = new THREE.SphereGeometry(1.2, 32, 32);
+                const texture = textureLoader.load(item.querySelector('img').src);
+                const material = new THREE.MeshPhongMaterial({
+                    map: texture,
+                    emissive: item.classList.contains('running') ? 0x2ecc71 : 0x3498db,
+                    emissiveIntensity: 0.2,
+                    transparent: true,
+                    opacity: 0.9
+                });
+
+                const sphere = new THREE.Mesh(geometry, material);
+
+                // Position spheres in a circle
+                const angle = (index / items.length) * Math.PI * 2;
+                const radius = 10;
+                sphere.position.x = Math.cos(angle) * radius;
+                sphere.position.y = Math.sin(angle) * radius;
+
+                const name = item.getAttribute('data-name') || '';
+                const description = item.getAttribute('data-description') || '';
+                const url = item.getAttribute('data-href') || '';
+
+                sphere.userData = { name, description, url };
+
+                scene.add(sphere);
+                // Store each sphere in a Map so we can easily filter later
+                appObjects.set(sphere, sphere.userData);
+            });
+        }
+
+        /**
+         * filterApps(query) - shows/hides spheres by matching their userData
+         */
+        function filterApps(query) {
+            // If query is empty, show all spheres
+            if (!query) {
+                appObjects.forEach((data, sphere) => {
+                    sphere.visible = true;
+                });
+                return;
+            }
+
+            // Otherwise, check name or description for a partial match
+            appObjects.forEach((data, sphere) => {
+                const name = data.name.toLowerCase();
+                const description = data.description.toLowerCase();
+                if (name.includes(query) || description.includes(query)) {
+                    sphere.visible = true;
+                } else {
+                    sphere.visible = false;
+                }
+            });
+        }
+
+        function onMouseMove(event) {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(scene.children);
+            const tooltip = document.querySelector('.app-tooltip');
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                if (object.userData.name) {
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = event.clientX + 20 + 'px';
+                    tooltip.style.top = event.clientY + 'px';
+                    tooltip.innerHTML = `
+                        <h3>${object.userData.name}</h3>
+                        <p>${object.userData.description}</p>
+                    `;
+                }
+            } else {
+                tooltip.style.display = 'none';
+            }
+        }
+
+        function onClick(event) {
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(scene.children);
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                if (object.userData.url) {
+                    window.location.href = object.userData.url;
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            if (isRotating) {
+                scene.rotation.y += 0.001;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /**
+         * Toggle global rotation and update button text
+         */
+        function toggleRotation() {
+            isRotating = !isRotating;
+
+            const rotationButton = document.getElementById('rotationButton');
+            if (isRotating) {
+                rotationButton.textContent = 'Stop Rotation';
+            } else {
+                rotationButton.textContent = 'Start Rotation';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
+
+
+
+
+
