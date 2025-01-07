@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pinokio Invaders Home - Tron Theme (Centered at Top)</title>
+
+  <!-- Retro Pixel Font (Press Start 2P) -->
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+
+  <style>
+    /* 
+      Tron-like color scheme:
+      background: #060613 (near-black with a bluish tint)
+      text: #ddd or #fff (light grey/white)
+      player: #FFE400 (bright gold)
+      invaders: #00DBFF (electric cyan)
+      bullets: #FFA700 (vivid orange)
+    */
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #060613; /* Tron-like dark background */
+      color: #ddd;         /* near-white text */
+      font-family: 'Press Start 2P', monospace, Courier, sans-serif;
+      position: relative;
+      overflow: hidden; 
+    }
+
+    /* App container (above the game canvas) */
+    main.app-container {
+      position: relative;
+      z-index: 1; 
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 20px; 
+      padding: 60px 40px;
+      margin-top: 20px; 
+      text-align: center;
+    }
+
+    .item {
+      width: 100px;
+      height: 100px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 219, 255, 0.1); /* slight cyan overlay */
+      border: 2px solid #00DBFF;          /* electric cyan border */
+      border-radius: 4px;
+      cursor: pointer;
+      text-decoration: none;
+      color: #00DBFF;                     /* text color matches border */
+      transition: transform 0.3s, background 0.3s;
+      position: relative;
+      font-size: 8px;
+    }
+
+    .item:hover {
+      transform: scale(1.05);
+      background: rgba(0, 219, 255, 0.2);
+    }
+
+    .item img {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 6px;
+    }
+
+    /* Glowing "OPEN" tag */
+    .open-tag {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: rgba(0, 219, 255, 0.2);
+      color: #00DBFF;
+      font-size: 8px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid #00DBFF;
+      text-shadow:
+        0 0 5px #0ff,
+        0 0 10px #0ff;
+    }
+
+    /* Canvas for the Space Invaders game */
+    #gameCanvas {
+      display: block;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100vw;
+      height: 60vh;
+      background: #060613;  /* same dark background */
+      z-index: 0; 
+      border-top: 2px solid #00DBFF;
+    }
+
+    /* 
+      Bottom bar (fixed above the player) with two lines:
+      1) Score/Lives/Level (centered)
+      2) Discover & Settings
+    */
+    .bottom-bar {
+      position: fixed;
+      width: 100%;
+      bottom: 0;
+      z-index: 2;
+      background: #060613;
+      border-top: 2px solid #00DBFF;
+      padding: 10px 0;
+    }
+
+    /* Score row: center the scoreboard */
+    .score-row {
+      display: flex;
+      justify-content: center;
+      gap: 30px;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: #fff; /* scoreboard stands out more in white */
+    }
+
+    .score-row span {
+      min-width: 80px;
+      text-align: center;
+    }
+
+    /* Buttons row */
+    .buttons-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+    }
+
+    /* Tron-like buttons: white-ish border & text, slight glow on hover */
+    .button {
+      text-decoration: none;
+      padding: 8px 16px;
+      background: #060613;
+      border: 2px solid #fff;
+      color: #fff;
+      font-size: 12px;
+      border-radius: 3px;
+      transition: background 0.3s, border-color 0.3s, color 0.3s;
+      text-transform: uppercase;
+      font-family: inherit;
+    }
+    .button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: #00DBFF;
+      color: #00DBFF;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Items (above the game canvas) -->
+  <main class="app-container">
+    <% 
+      // Sort items before rendering (most used first)
+      items.sort((a, b) => b.usage - a.usage);
+      items.forEach(item => {
+    %>
+      <a href="<%= item.url %>" class="item">
+        <% if (item.isOpen) { %>
+          <div class="open-tag">OPEN</div>
+        <% } %>
+        <img src="<%= item.icon || 'default-icon.png' %>" alt="<%= item.name %>">
+        <div><%= item.name %></div>
+      </a>
+    <% }) %>
+  </main>
+
+  <!-- Space Invaders Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Bottom Bar (just above the player) -->
+  <div class="bottom-bar">
+    <!-- 1) Scoreboard Row (centered) -->
+    <div class="score-row">
+      <span id="score">Score: 0</span>
+      <span id="lives">Lives: 3</span>
+      <span id="level">Level: 1</span>
+    </div>
+    <!-- 2) Buttons Row -->
+    <div class="buttons-row">
+      <a href="/?mode=explore" class="button">Discover</a>
+      <a href="/?mode=settings" class="button">Settings</a>
+    </div>
+  </div>
+
+  <!-- Space Invaders Logic (Horizontally centered, top offset) -->
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // We'll define an offset so the player is above the bottom bar
+    const BOTTOM_UI_OFFSET = 80;
+
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    // Player
+    let playerX = canvas.width / 2;
+    let playerY = canvas.height - 40 - BOTTOM_UI_OFFSET;
+    const playerWidth = 30;
+    const playerHeight = 10;
+    const playerSpeed = 5;
+    const playerColor = '#FFE400';  // bright gold
+
+    // Bullets (player)
+    let bullets = [];
+    const bulletSpeed = 7;
+    const bulletColor = '#FFA700';  // vivid orange
+
+    // Enemy Bullets
+    let enemyBullets = [];
+    const enemyBulletSpeed = 3;
+    const enemyBulletColor = '#FFA700';
+
+    // Invaders
+    let invaders = [];
+    const invaderRows = 5;     
+    const invaderCols = 7;     
+    const invaderSize = 20;    
+    let invaderSpeedX = 1.5;   
+    const invaderSpeedY = 15;  
+    let invaderDir = 1;        
+    let moveDown = false;
+    const invaderColor = '#00DBFF'; // electric cyan
+
+    // Score, Lives, Level
+    let score = 0;
+    let lives = 3;
+    let level = 1;
+
+    // HUD references
+    const scoreDisplay = document.getElementById('score');
+    const livesDisplay = document.getElementById('lives');
+    const levelDisplay = document.getElementById('level');
+
+    function updateHUD() {
+      scoreDisplay.textContent = `Score: ${score}`;
+      livesDisplay.textContent = `Lives: ${lives}`;
+      levelDisplay.textContent = `Level: ${level}`;
+    }
+
+    // Keyboard input
+    let leftPressed = false;
+    let rightPressed = false;
+
+    /**
+     * Rebuild the invaders array so they spawn near the top,
+     * but horizontally centered.
+     */
+    function initializeInvaders() {
+      invaders = [];
+
+      // Horizontal & vertical spacing between each invader
+      const spacingX = 10;
+      const spacingY = 30;
+
+      // Total width of the formation
+      const totalWidth = invaderCols * invaderSize + (invaderCols - 1) * spacingX;
+      // We'll keep them near the top with a fixed top offset
+      const offsetY = 50; // e.g., top offset of 50px from the top
+
+      // offsetX to center horizontally
+      const offsetX = (canvas.width - totalWidth) / 2;
+
+      for (let row = 0; row < invaderRows; row++) {
+        for (let col = 0; col < invaderCols; col++) {
+          invaders.push({
+            x: offsetX + col * (invaderSize + spacingX),
+            y: offsetY + row * (invaderSize + spacingY),
+            w: invaderSize,
+            h: invaderSize
+          });
+        }
+      }
+    }
+    initializeInvaders();
+
+    // Reset to brand-new game
+    function resetGame() {
+      score = 0;
+      lives = 3;
+      level = 1;
+      invaderSpeedX = 1.5;
+      bullets = [];
+      enemyBullets = [];
+      leftPressed = false;
+      rightPressed = false;
+      playerX = canvas.width / 2;
+      playerY = canvas.height - 40 - BOTTOM_UI_OFFSET;
+      invaderDir = 1;
+      initializeInvaders();
+      updateHUD();
+    }
+
+    // Advance to next level
+    function nextLevel() {
+      level++;
+      invaderSpeedX += 0.5; 
+      initializeInvaders();
+      bullets = [];
+      enemyBullets = [];
+      playerX = canvas.width / 2;
+      playerY = canvas.height - 40 - BOTTOM_UI_OFFSET;
+      invaderDir = 1;
+      updateHUD();
+    }
+
+    // Keyboard handlers
+    document.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') leftPressed = true;
+      if (e.key === 'ArrowRight') rightPressed = true;
+      if (e.key === ' ') {
+        bullets.push({
+          x: playerX + playerWidth / 2 - 2,
+          y: playerY - 5
+        });
+      }
+    });
+    document.addEventListener('keyup', e => {
+      if (e.key === 'ArrowLeft') leftPressed = false;
+      if (e.key === 'ArrowRight') rightPressed = false;
+    });
+
+    // Let invaders shoot bullets randomly
+    function invadersShoot() {
+      invaders.forEach(inv => {
+        // Probability of shooting per frame
+        if (Math.random() < 0.0015) {
+          enemyBullets.push({
+            x: inv.x + inv.w / 2 - 2,
+            y: inv.y + inv.h
+          });
+        }
+      });
+    }
+
+    function update() {
+      // Move player
+      if (leftPressed && playerX > 0) {
+        playerX -= playerSpeed;
+      }
+      if (rightPressed && playerX < canvas.width - playerWidth) {
+        playerX += playerSpeed;
+      }
+
+      // Move player bullets
+      for (let b of bullets) {
+        b.y -= bulletSpeed;
+      }
+      bullets = bullets.filter(b => b.y > -10);
+
+      // Move invaders
+      moveDown = false;
+      for (let inv of invaders) {
+        inv.x += invaderDir * invaderSpeedX;
+        if (inv.x < 0 || inv.x + inv.w > canvas.width) {
+          moveDown = true;
+        }
+      }
+      if (moveDown) {
+        for (let inv of invaders) {
+          inv.y += invaderSpeedY;
+        }
+        invaderDir *= -1; 
+      }
+
+      // Check bullet vs invader collisions
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        for (let j = invaders.length - 1; j >= 0; j--) {
+          const inv = invaders[j];
+          // AABB collision
+          if (
+            b.x < inv.x + inv.w &&
+            b.x + 4 > inv.x &&
+            b.y < inv.y + inv.h &&
+            b.y + 8 > inv.y
+          ) {
+            invaders.splice(j, 1);
+            bullets.splice(i, 1);
+            score += 10;
+            updateHUD();
+            break;
+          }
+        }
+      }
+
+      // If all invaders are gone, next level
+      if (invaders.length === 0) {
+        nextLevel();
+      }
+
+      // Invaders shoot
+      invadersShoot();
+
+      // Move enemy bullets
+      for (let eb of enemyBullets) {
+        eb.y += enemyBulletSpeed;
+      }
+      enemyBullets = enemyBullets.filter(eb => eb.y < canvas.height + 10);
+
+      // Enemy bullet vs player collisions
+      for (let i = enemyBullets.length - 1; i >= 0; i--) {
+        const eb = enemyBullets[i];
+        if (
+          eb.x < playerX + playerWidth &&
+          eb.x + 4 > playerX &&
+          eb.y < playerY + playerHeight &&
+          eb.y + 8 > playerY
+        ) {
+          enemyBullets.splice(i, 1);
+          lives--;
+          updateHUD();
+          if (lives <= 0) {
+            resetGame();
+            return;
+          }
+        }
+      }
+
+      // If any invader reaches bottom => lose a life
+      for (let inv of invaders) {
+        if (inv.y + inv.h >= playerY) {
+          lives--;
+          updateHUD();
+          if (lives <= 0) {
+            resetGame();
+            return;
+          } else {
+            initializeInvaders();
+            bullets = [];
+            enemyBullets = [];
+            break;
+          }
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw player
+      ctx.fillStyle = playerColor;
+      ctx.fillRect(playerX, playerY, playerWidth, playerHeight);
+
+      // Draw player bullets
+      ctx.fillStyle = bulletColor; 
+      for (let b of bullets) {
+        ctx.fillRect(b.x, b.y, 4, 8);
+      }
+
+      // Draw invaders
+      ctx.fillStyle = invaderColor; 
+      for (let inv of invaders) {
+        ctx.fillRect(inv.x, inv.y, inv.w, inv.h);
+      }
+
+      // Draw enemy bullets
+      ctx.fillStyle = enemyBulletColor;
+      for (let eb of enemyBullets) {
+        ctx.fillRect(eb.x, eb.y, 4, 8);
+      }
+    }
+
+    function gameLoop() {
+      update();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+    gameLoop();
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+      playerX = canvas.width / 2;
+      playerY = canvas.height - 40 - BOTTOM_UI_OFFSET;
+      initializeInvaders();
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
