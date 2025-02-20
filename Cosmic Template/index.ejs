@@ -1,0 +1,707 @@
+<html>
+<head>
+  <!-- Required inclusion of Electron-specific CSS when the agent is 'electron' -->
+  <% if (agent === "electron") { %>
+    <link href="/electron.css" rel="stylesheet">
+  <% } %>
+
+  <!-- Google Font for Digital Clock -->
+  <link href="https://fonts.googleapis.com/css?family=Orbitron&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome Icons -->
+  <link href="/css/fontawesome.min.css" rel="stylesheet">
+  <link href="/css/solid.min.css" rel="stylesheet">
+  <link href="/css/regular.min.css" rel="stylesheet">
+
+  <!-- Tippy/Popper for context menus -->
+  <link href="/tippy.css" rel="stylesheet">
+  <script src="/popperjs.js"></script>
+  <script src="/tippy.js"></script>
+
+  <!-- Include Interact.js for draggable/resizable widgets -->
+  <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+  <!-- Customize the Stylesheet -->
+  <style>
+    /***************************************************************
+     * Global Styles & Background
+     ***************************************************************/
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: sans-serif;
+      color: white;
+      overflow: hidden;
+      background: url("E:/Awaken/PInokio Design/Universe-bg.jpg") no-repeat center center fixed;
+      background-size: cover;
+    }
+
+    /***************************************************************
+     * Shooting Stars Canvas Overlay
+     ***************************************************************/
+    #shootingStarsCanvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /***************************************************************
+     * Header
+     ***************************************************************/
+    header.grabbable {
+      -webkit-app-region: drag;
+      height: 30px;
+      z-index: 3;
+    }
+
+    /***************************************************************
+     * Dashboard Widgets
+     ***************************************************************/
+    #dashboard {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      height: 180px;
+      z-index: 3;
+      background: rgba(0, 0, 0, 0.2);
+      pointer-events: auto;
+    }
+    #clockWidget {
+      /* Optionally adjust dimensions or padding as desired */
+    }
+    #clockDisplay {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 64px;
+      text-align: center;
+      padding: 20px;
+      margin: 0;
+    }
+    .widget {
+      position: absolute;
+      border-radius: 8px;
+      overflow: hidden;
+      width: 300px;
+      min-height: 150px;
+      padding: 10px;
+      box-sizing: border-box;
+      color: white;
+      background: rgba(30, 0, 30, 0.6);
+      border: 2px solid rgba(255, 0, 255, 0.8);
+      box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+      position: relative;
+      transition: transform 0.3s ease, background 0.3s, box-shadow 0.3s;
+    }
+    .widget:hover {
+      transform: scale(1.05) translateY(-5px);
+      background: rgba(30, 0, 30, 0.9);
+      box-shadow: 0 0 25px rgba(255, 0, 255, 1);
+    }
+    .widget::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: url('https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExazRleWZhem56b2l2ems4bWthaW92ZjRkcHQ5ZGJpbnVxNmhwYTBncSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cEYFeE4wJ6jdDVBiiIM/giphy.gif') repeat;
+      opacity: 0.2;
+      z-index: -1;
+      animation: drift 20s linear infinite;
+    }
+    @keyframes drift {
+      0% { background-position: 0 0; }
+      100% { background-position: 100px 100px; }
+    }
+    .widget .widget-header {
+      font-weight: bold;
+      cursor: move;
+      margin-bottom: 10px;
+      text-shadow: 0 0 5px rgba(255, 0, 255, 0.8);
+    }
+    .widget .widget-content {
+      font-size: 14px;
+      height: calc(100% - 30px);
+      overflow-y: auto;
+    }
+    #newsList {
+      max-height: none;
+      height: 100%;
+      overflow: hidden;
+      position: relative;
+    }
+    #newsList .news-container {
+      animation: scrollNews 15s linear infinite;
+      height: auto;
+    }
+    .news-item {
+      padding: 5px;
+      border-bottom: 1px solid rgba(255, 0, 255, 0.3);
+      cursor: pointer;
+      transition: background 0.3s;
+      color: rgba(0, 255, 255, 1);
+      text-decoration: none;
+      display: block;
+      text-shadow: 0 0 3px rgba(0, 200, 255, 0.8);
+    }
+    .news-item:hover {
+      background: rgba(255, 0, 255, 0.2);
+      color: rgba(255, 255, 255, 1);
+      text-shadow: 0 0 5px rgba(255, 0, 255, 0.8);
+    }
+    @keyframes scrollNews {
+      0% { transform: translateY(0); }
+      100% { transform: translateY(-100%); }
+    }
+    #newsList:hover .news-container {
+      animation-play-state: paused;
+    }
+    #cosmicInfo img {
+      width: 100%;
+      height: auto;
+      max-height: calc(100% - 30px);
+      object-fit: cover;
+      border-radius: 4px;
+    }
+    #cosmicInfo #apodTitle {
+      font-size: 12px;
+      margin-top: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /***************************************************************
+     * Main App Grid
+     ***************************************************************/
+    main {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 20px 50px;
+      margin-top: 220px;
+      box-sizing: border-box;
+      justify-content: center;
+      position: relative;
+      z-index: 2;
+    }
+    .item {
+      display: inline-block;
+      width: 150px;
+      height: 100px;
+      margin: 15px;
+      border-radius: 8px;
+      overflow: hidden;
+      text-decoration: none;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.3s ease, background 0.3s, box-shadow 0.3s;
+      background: rgba(0, 0, 50, 0.5);
+      position: relative;
+      border: 2px solid rgba(0, 200, 255, 0.8);
+      box-shadow: 0 0 15px rgba(0, 200, 255, 0.5);
+      pointer-events: auto;
+      transform-origin: center;
+    }
+    .item:hover {
+      transform: scale(1.1) translateY(-10px);
+      background: rgba(0, 0, 50, 0.9);
+      box-shadow: 0 0 25px rgba(0, 200, 255, 1), 0 0 50px rgba(255, 0, 255, 0.7);
+      z-index: 10;
+    }
+    .item img {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      border-radius: 6px;
+      margin: 5px auto 0;
+      display: block;
+    }
+    .item .name {
+      text-align: center;
+      font-size: 14px;
+      margin-top: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-shadow: 0 0 5px rgba(0, 200, 255, 0.8);
+    }
+    .item .open-indicator {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      background: green;
+      color: #fff;
+      font-size: 10px;
+      font-weight: bold;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    /***************************************************************
+     * Footer & Footer Buttons
+     ***************************************************************/
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px 15px;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 3;
+    }
+    footer .container {
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      flex-wrap: wrap;
+    }
+    .footer-btn {
+      display: inline-block;
+      width: 120px;
+      height: 80px;
+      margin: 8px;
+      border-radius: 8px;
+      overflow: hidden;
+      text-decoration: none;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.3s ease, background 0.3s, box-shadow 0.3s;
+      background: rgba(0, 0, 50, 0.5);
+      position: relative;
+      border: 2px solid rgba(0, 200, 255, 0.8);
+      box-shadow: 0 0 15px rgba(0, 200, 255, 0.5);
+      text-align: center;
+      line-height: 80px;
+      font-size: 14px;
+      transform-origin: center;
+    }
+    .footer-btn:hover {
+      transform: scale(1.1) translateY(-5px);
+      background: rgba(0, 0, 50, 0.9);
+      box-shadow: 0 0 25px rgba(0, 200, 255, 1), 0 0 50px rgba(255, 0, 255, 0.7);
+      z-index: 10;
+    }
+
+    /***************************************************************
+     * Context Menu
+     ***************************************************************/
+    .menuitem {
+      padding: 5px;
+      cursor: pointer;
+    }
+    .menuitem:hover {
+      color: royalblue;
+    }
+
+    /***************************************************************
+     * Color Themes
+     ***************************************************************/
+    body.theme-green-purple .widget {
+      border: 2px solid rgba(0, 255, 100, 0.8);
+      box-shadow: 0 0 15px rgba(0, 255, 100, 0.5);
+    }
+    body.theme-green-purple .item,
+    body.theme-green-purple .footer-btn {
+      border: 2px solid rgba(200, 0, 255, 0.8);
+      box-shadow: 0 0 15px rgba(200, 0, 255, 0.5);
+    }
+    body.theme-blue-orange .widget {
+      border: 2px solid rgba(0, 150, 255, 0.8);
+      box-shadow: 0 0 15px rgba(0, 150, 255, 0.5);
+    }
+    body.theme-blue-orange .item,
+    body.theme-blue-orange .footer-btn {
+      border: 2px solid rgba(255, 150, 0, 0.8);
+      box-shadow: 0 0 15px rgba(255, 150, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <!-- Shooting Stars Canvas Overlay -->
+  <canvas id="shootingStarsCanvas"></canvas>
+
+  <!-- Grabbable Header -->
+  <header class="grabbable"></header>
+
+  <!-- Dashboard Widgets Area -->
+  <div id="dashboard">
+    <!-- Digital Clock Widget -->
+    <div class="widget" id="clockWidget" style="top: 0px; left: 0px;">
+      <div class="widget-content" id="clockDisplay" style="font-family: 'Orbitron', sans-serif; font-size: 64px; text-align: center; padding: 20px; margin: 0;">
+        --:--:--
+      </div>
+    </div>
+    <!-- Cosmic Event Tracker Widget -->
+    <div class="widget" id="cosmicWidget" style="top: 180px; left: 0px;">
+      <div class="widget-header">Cosmic Events</div>
+      <div class="widget-content" id="cosmicInfo">
+        <img id="apodImage" alt="NASA APOD">
+        <div id="apodTitle"></div>
+      </div>
+    </div>
+    <!-- Galactic News Feed Widget -->
+    <div class="widget" id="newsWidget" style="top: 180px; left: 320px;">
+      <div class="widget-header">Galactic News</div>
+      <div class="widget-content" id="newsList">
+        <div class="news-container">
+          <a href="https://twitter.com/search?q=%23SpaceX" target="_blank" class="news-item">SpaceX launches Starship into orbit!</a>
+          <a href="https://twitter.com/search?q=%23Exoplanet" target="_blank" class="news-item">New exoplanet discovered, 42 light-years away.</a>
+          <a href="https://twitter.com/search?q=%23Hubble" target="_blank" class="news-item">Hubble captures stunning galaxy collision.</a>
+          <a href="https://twitter.com/search?q=%23Mars" target="_blank" class="news-item">Mars rover finds mysterious rock formation.</a>
+          <a href="https://twitter.com/search?q=%23Cosmos" target="_blank" class="news-item">Cosmic rays detected from distant quasar.</a>
+          <!-- Duplicate items for seamless scrolling -->
+          <a href="https://twitter.com/search?q=%23SpaceX" target="_blank" class="news-item">SpaceX launches Starship into orbit!</a>
+          <a href="https://twitter.com/search?q=%23Exoplanet" target="_blank" class="news-item">New exoplanet discovered, 42 light-years away.</a>
+          <a href="https://twitter.com/search?q=%23Hubble" target="_blank" class="news-item">Hubble captures stunning galaxy collision.</a>
+          <a href="https://twitter.com/search?q=%23Mars" target="_blank" class="news-item">Mars rover finds mysterious rock formation.</a>
+          <a href="https://twitter.com/search?q=%23Cosmos" target="_blank" class="news-item">Cosmic rays detected from distant quasar.</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Grid -->
+  <main>
+    <% items.forEach((item) => { %>
+      <a class="item <%= item.running ? 'running' : '' %>"
+         href="<%= item.url %>"
+         data-browse-url="<%= item.browse_url %>"
+         data-href="<%= item.url %>"
+         data-name="<%= item.name %>"
+         data-description="<%= item.description || 'Explore this cosmic app!' %>"
+         data-path="<%= item.path %>">
+         <% if (item.running) { %>
+           <div class="open-indicator">OPEN</div>
+         <% } %>
+         <% if (item.icon) { %>
+           <img src="<%= item.icon %>" alt="<%= item.name %>">
+         <% } else { %>
+           <img src="icon.png" alt="Default Icon">
+         <% } %>
+         <div class="name"><%= item.name %></div>
+      </a>
+    <% }) %>
+  </main>
+
+  <!-- Footer Dock -->
+  <footer>
+    <div class="container">
+      <a class="footer-btn" href="/?mode=explore">Discover</a>
+      <a class="footer-btn" href="https://portal.pinokio.computer">
+        <i class="fa-solid fa-question"></i> Questions
+      </a>
+      <a class="footer-btn" href="/?mode=settings">Settings</a>
+      <a class="footer-btn" id="resetLayoutBtn" href="javascript:void(0);">Reset Layout</a>
+      <a class="footer-btn" id="themeToggleBtn" href="javascript:void(0);">Toggle Theme</a>
+    </div>
+  </footer>
+
+  <script>
+    /****************************************************************
+     * Shooting Stars Effect
+     ****************************************************************/
+    const starsCanvas = document.getElementById('shootingStarsCanvas');
+    const starsCtx = starsCanvas.getContext('2d');
+    function resizeStarsCanvas() {
+      starsCanvas.width = window.innerWidth;
+      starsCanvas.height = window.innerHeight;
+    }
+    resizeStarsCanvas();
+    window.addEventListener('resize', resizeStarsCanvas);
+
+    class ShootingStar {
+      constructor() {
+        this.reset();
+      }
+      reset() {
+        this.x = Math.random() * starsCanvas.width;
+        this.y = Math.random() * starsCanvas.height * 0.25;
+        this.vx = - (Math.random() * 4 + 2);
+        this.vy = Math.random() * 2 + 1;
+        this.length = Math.random() * 80 + 20;
+        this.opacity = 1;
+        this.fade = Math.random() * 0.03 + 0.01;
+      }
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.opacity -= this.fade;
+        if (this.opacity <= 0) {
+          this.reset();
+        }
+      }
+      draw() {
+        starsCtx.save();
+        starsCtx.globalAlpha = this.opacity;
+        starsCtx.strokeStyle = 'white';
+        starsCtx.lineWidth = 2;
+        starsCtx.beginPath();
+        starsCtx.moveTo(this.x, this.y);
+        const norm = Math.hypot(this.vx, this.vy);
+        starsCtx.lineTo(this.x - this.length * this.vx / norm,
+                        this.y - this.length * this.vy / norm);
+        starsCtx.stroke();
+        starsCtx.restore();
+      }
+    }
+    const shootingStars = [];
+    const maxShootingStars = 5;
+    for (let i = 0; i < maxShootingStars; i++) {
+      shootingStars.push(new ShootingStar());
+    }
+    function animateShootingStars() {
+      starsCtx.clearRect(0, 0, starsCanvas.width, starsCanvas.height);
+      shootingStars.forEach(star => {
+        star.update();
+        star.draw();
+      });
+      requestAnimationFrame(animateShootingStars);
+    }
+    animateShootingStars();
+
+    /****************************************************************
+     * Dashboard Widget: Draggable & Resizable with Save Preferences
+     ****************************************************************/
+    function loadWidgetPositions() {
+      const saved = localStorage.getItem('widgetPositions');
+      if (saved) {
+        const positions = JSON.parse(saved);
+        document.querySelectorAll('.widget').forEach(widget => {
+          const id = widget.id;
+          if (positions[id]) {
+            const pos = positions[id];
+            widget.style.transform = 'translate(' + pos.x + 'px, ' + pos.y + 'px)';
+            widget.setAttribute('data-x', pos.x);
+            widget.setAttribute('data-y', pos.y);
+            widget.style.width = pos.width + 'px';
+            widget.style.height = pos.height + 'px';
+          }
+        });
+      }
+    }
+    function saveWidgetPositions() {
+      const positions = {};
+      document.querySelectorAll('.widget').forEach(widget => {
+        const id = widget.id;
+        const x = parseFloat(widget.getAttribute('data-x')) || 0;
+        const y = parseFloat(widget.getAttribute('data-y')) || 0;
+        const width = widget.offsetWidth;
+        const height = widget.offsetHeight;
+        positions[id] = { x, y, width, height };
+      });
+      localStorage.setItem('widgetPositions', JSON.stringify(positions));
+    }
+    loadWidgetPositions();
+
+    interact('.widget')
+      .draggable({
+        listeners: {
+          move(event) {
+            const target = event.target;
+            const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+            const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+            target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+            target.setAttribute('data-x', x);
+            target.setAttribute('data-y', y);
+          },
+          end() {
+            saveWidgetPositions();
+          }
+        }
+      })
+      .resizable({
+        edges: { left: true, right: true, bottom: true, top: true },
+        listeners: {
+          move(event) {
+            const target = event.target;
+            let x = parseFloat(target.getAttribute('data-x')) || 0;
+            let y = parseFloat(target.getAttribute('data-y')) || 0;
+            target.style.width = event.rect.width + 'px';
+            target.style.height = event.rect.height + 'px';
+            x += event.deltaRect.left;
+            y += event.deltaRect.top;
+            target.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+            target.setAttribute('data-x', x);
+            target.setAttribute('data-y', y);
+          },
+          end() {
+            saveWidgetPositions();
+          }
+        },
+        modifiers: [
+          interact.modifiers.restrictSize({
+            min: { width: 150, height: 100 }
+          })
+        ],
+        inertia: true
+      });
+
+    /****************************************************************
+     * Dashboard Widgets Update Functions
+     ****************************************************************/
+    function updateClock() {
+      const now = new Date();
+      document.getElementById('clockDisplay').textContent = now.toLocaleTimeString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // Cosmic Event Tracker with NASA APOD
+    function updateCosmicEvents() {
+      const apiKey = 'DEMO_KEY'; // Replace with your NASA API key from https://api.nasa.gov/
+      fetch(`https://api.nasa.gov/planetary/apod?api_key=${apiKey}`)
+        .then(response => response.json())
+        .then(data => {
+          document.getElementById('apodImage').src = data.url;
+          document.getElementById('apodTitle').textContent = data.title;
+        })
+        .catch(error => {
+          console.error('Error fetching APOD:', error);
+          document.getElementById('apodTitle').textContent = 'Failed to load cosmic event.';
+        });
+    }
+    updateCosmicEvents();
+    setInterval(updateCosmicEvents, 24 * 60 * 60 * 1000);
+
+    // Galactic News Feed
+    function updateGalacticNews() {
+      const newsItems = [
+        { text: "SpaceX launches Starship into orbit!", link: "https://twitter.com/search?q=%23SpaceX" },
+        { text: "New exoplanet discovered, 42 light-years away.", link: "https://twitter.com/search?q=%23Exoplanet" },
+        { text: "Hubble captures stunning galaxy collision.", link: "https://twitter.com/search?q=%23Hubble" },
+        { text: "Mars rover finds mysterious rock formation.", link: "https://twitter.com/search?q=%23Mars" },
+        { text: "Cosmic rays detected from distant quasar.", link: "https://twitter.com/search?q=%23Cosmos" }
+      ];
+      const container = document.querySelector('#newsList .news-container');
+      container.innerHTML = '';
+      newsItems.forEach(item => {
+        const a = document.createElement('a');
+        a.href = item.link;
+        a.target = '_blank';
+        a.className = 'news-item';
+        a.textContent = item.text;
+        container.appendChild(a);
+      });
+      newsItems.forEach(item => {
+        const a = document.createElement('a');
+        a.href = item.link;
+        a.target = '_blank';
+        a.className = 'news-item';
+        a.textContent = item.text;
+        container.appendChild(a);
+      });
+    }
+    updateGalacticNews();
+    setInterval(updateGalacticNews, 5 * 60 * 1000);
+
+    /****************************************************************
+     * Event Delegation for App Card Clicks
+     ****************************************************************/
+    document.addEventListener('click', function(e) {
+      const appCard = e.target.closest('.item');
+      if (appCard) {
+        e.preventDefault();
+        window.open(appCard.getAttribute('href'), '_blank');
+      }
+    });
+
+    /****************************************************************
+     * Context Menu
+     ****************************************************************/
+    tippy('.item', {
+      content: `
+        <div class='menuitem' onclick="run(event)">Open</div>
+        <div class='menuitem' onclick="browse(event)">Browse</div>
+      `,
+      placement: 'bottom',
+      allowHTML: true,
+      interactive: true,
+      trigger: 'contextmenu',
+      onTrigger(instance, event) {
+        event.preventDefault();
+        const attr  = instance.reference.getAttribute("data-browse-url");
+        const attr2 = instance.reference.getAttribute("data-href");
+        instance.popper.setAttribute("data-browse-url", attr);
+        instance.popper.setAttribute("data-href", attr2);
+      },
+    });
+
+    const run = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const url = event.target.closest("[data-href]").getAttribute("data-href");
+      window.location.href = url;
+    };
+
+    const browse = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const url = event.target.closest("[data-browse-url]").getAttribute("data-browse-url");
+      window.location.href = url;
+    };
+
+    /****************************************************************
+     * Footer Controls
+     ****************************************************************/
+    document.getElementById('resetLayoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('widgetPositions');
+      loadWidgetPositions();
+      alert("Widget layout has been reset.");
+    });
+
+    // Theme Toggle
+    const themes = ['', 'theme-green-purple', 'theme-blue-orange'];
+    let currentThemeIndex = 0;
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+      document.body.className = themes[currentThemeIndex];
+    });
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
