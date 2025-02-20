@@ -7,6 +7,8 @@ About
 These dashboards are designed to replace the default Pinokio homepage with different themes. Feel free to use them as-is or tweak them to suit your style!
 
 Quick Installation Guide
+
+
 Follow these steps to install one of my dashboards into your Pinokio setup:
 Choose a Dashboard: Browse the repository and pick the dashboard template you like (e.g., cosmic-dashboard.ejs or others provided).
 Locate the Target File: In your Pinokio installation, navigate to the web/views/ folder. The file you need to replace is index.ejs.
@@ -25,4 +27,6 @@ Here, /Universe-bg.jpg assumes the file is in web/public/.
 Test Your Dashboard: Restart Pinokio or refresh the homepage in your browser to see your new dashboard in action!
 
 Credits
+
+
 Created by TheAwaken1 for the Pinokio community. Enjoy, and happy coding!
