@@ -1,8 +1,9 @@
 Pinokio Homepage Dashboards
 
-Welcome to my collection of custom Pinokio Homepage dashboards! I’ve created these templates to enhance your Pinokio experience with visually appealing, interactive homepages. These dashboards are free for anyone to use, modify, and enjoy
+Welcome to my collection of custom Pinokio Homepage dashboards! I’ve created these templates to enhance your Pinokio experience with visually appealing, interactive homepages. These dashboards are free for anyone to use, modify, and enjoy.
 
 About
+
 These dashboards are designed to replace the default Pinokio homepage with different themes. Feel free to use them as-is or tweak them to suit your style!
 
 Quick Installation Guide
